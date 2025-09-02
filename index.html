@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Lunar Calendar 622–2030</title>
+<title>Universal Hijri Calendar</title>
 <style>
 :root{--bg:#f6f7fb;--card:#fff;--accent:#1a73e8;--muted:#666;--cell:34px}
 body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:16px;background:var(--bg);color:#222}
@@ -30,11 +30,11 @@ footer{max-width:1200px;margin:24px auto;text-align:center;color:var(--muted);fo
 </head>
 <body>
 <header>
-  <h1>Lunar Calendar</h1>
+  <h1>Universal Hijri Calendar</h1>
   <div class="controls">
     <button onclick="prevYear()">Prev</button>
     <button onclick="nextYear()">Next</button>
-    <input type="number" id="yearInput" min="1" max="1409" value="1" style="width:70px;">
+    <input type="number" id="yearInput" min="1" max="1600" value="1" style="width:70px;">
     <button onclick="goToYear()">Go</button>
     <span id="yearLabel"></span>
   </div>
@@ -42,7 +42,7 @@ footer{max-width:1200px;margin:24px auto;text-align:center;color:var(--muted);fo
 <main>
   <div id="calendar"></div>
 </main>
-<footer>Islamic Lunar Calendar - First day after new moon</footer>
+<footer>Made by FAISAL ©</footer>
 
 <script>
 const monthNames = [
@@ -121,7 +121,7 @@ class Utils {
 
 // --- Generate New Moons 2020-2025 ---
 const start = new Date(622,7,1);
-const end = new Date(2100,11,31);
+const end = new Date(2200,4,15);
 
 const approxLunarDates = Utils.eachLunarCycle(start,end);
 
