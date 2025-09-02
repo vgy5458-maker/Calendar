@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lunar Calendar 622–2030</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--accent:#1a73e8;--muted:#666;--cell:34px}
+body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:16px;background:var(--bg);color:#222}
+header{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto 12px;gap:12px}
+h1{font-size:1.05rem;margin:0}
+.controls{display:flex;gap:8px;align-items:center}
+button{background:var(--accent);color:#fff;border:0;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:600}
+button:disabled{opacity:.4;cursor:not-allowed}
+#yearLabel{font-weight:700;color:var(--muted);margin-left:8px}
+main{max-width:1200px;margin:0 auto}
+.info{margin:8px 0;color:var(--muted)}
+.gridRow{display:flex;justify-content:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.month{width:220px;background:var(--card);box-shadow:0 1px 4px rgba(0,0,0,.06);border-radius:6px;overflow:hidden}
+.month-header{background:var(--accent);color:white;padding:6px 8px;font-weight:700;text-align:center}
+.month-caption{font-size:.86rem;padding:6px 8px;text-align:center;color:#0b3d91;font-weight:600}
+table{width:100%;border-collapse:collapse;background:transparent}
+thead th{font-weight:700;padding:6px 4px;background:#eaf2ff;color:#0b3d91;font-size:.78rem}
+td,th{border:1px solid #e6eefb;width:calc(var(--cell));height:var(--cell);text-align:center;vertical-align:top;padding:2px;font-size:.82rem}
+.emptyCell{background:transparent;border:1px solid transparent}
+.dayCell:hover{background:#f0f6ff;cursor:pointer}
+footer{max-width:1200px;margin:24px auto;text-align:center;color:var(--muted);font-size:.9rem}
+@media (max-width:1000px){ .month{width:45%} }
+@media (max-width:600px){ .month{width:100%} .gridRow{flex-direction:column;align-items:center} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lunar Calendar</h1>
+  <div class="controls">
+    <button onclick="prevYear()">Prev</button>
+    <button onclick="nextYear()">Next</button>
+    <input type="number" id="yearInput" min="1" max="1409" value="1" style="width:70px;">
+    <button onclick="goToYear()">Go</button>
+    <span id="yearLabel"></span>
+  </div>
+</header>
+<main>
+  <div id="calendar"></div>
+</main>
+<footer>Islamic Lunar Calendar - First day after new moon</footer>
+
+<script>
+const monthNames = [
+  "Muharram","Safar","Rabi'ul Awwal","Rabi'ul Akhir",
+  "Jumadal Ula","Jumadal Akhira","Rajab","Sha'ban",
+  "Ramadan","Shawwal","Dhul Qa'ada","Dhul Hijja"
+];
+
+class Utils {
+    static LUNAR_CYCLE = 29.53058770576;
+
+    static toReducedAngle(d) { d %= 360; return d<0?d+360:d; }
+    static toRadians(d) { return d*Math.PI/180; }
+
+    static toDecimalYear(date) {
+        const daysInYear = (date.getFullYear()%4===0?366:365.2425);
+        return date.getFullYear() + (Utils.getDayOfYear(date)/daysInYear);
+    }
+
+    static getDayOfYear(date){
+        const start = new Date(date.getFullYear(),0,0);
+        const diff = date - start + ((start.getTimezoneOffset()-date.getTimezoneOffset())*60*1000);
+        return Math.floor(diff/(1000*60*60*24));
+    }
+
+    static eachLunarCycle(from, thru){
+        let d = new Date(from);
+        const dates = [];
+        while(d<=thru){
+            dates.push(new Date(d));
+            d = new Date(d.getTime() + Utils.LUNAR_CYCLE*24*3600*1000);
+        }
+        return dates;
+    }
+
+    static toK(date){ return Math.floor((Utils.toDecimalYear(date)-2000)*12.3685); }
+    static toT(k){ return k/1236.85; }
+    static toJDE(k,T){ return 2451550.09766+29.530588861*k+0.00015437*T*T-0.000000150*T*T*T+0.00000000073*T*T*T*T; }
+    static toE(T){ return 1-0.002516*T-0.0000074*T*T; }
+    static toM(k,T){ return Utils.toReducedAngle(2.5534+29.10535670*k-0.0000014*T*T-0.00000011*T*T*T); }
+    static toMPrime(k,T){ return Utils.toReducedAngle(201.5643+385.81693528*k+0.0107582*T*T+0.00001238*T*T*T-0.000000058*T*T*T*T); }
+    static toF(k,T){ return Utils.toReducedAngle(160.7108+390.67050284*k-0.0016118*T*T-0.00000227*T*T*T+0.000000011*T*T*T*T); }
+    static toO(k,T){ return Utils.toReducedAngle(124.7746-1.56375588*k+0.0020672*T*T+0.00000215*T*T*T); }
+
+    static toA(k,T){
+        const angles=[299.77+0.107408*k-0.009173*T*T,251.88+0.016321*k,251.83+26.651886*k,349.42+36.412478*k,
+        84.66+18.206239*k,141.74+53.303771*k,207.14+2.453732*k,154.84+7.306860*k,34.52+27.261239*k,
+        207.19+0.121824*k,291.34+1.844379*k,161.72+24.198154*k,239.56+25.513099*k,331.55+3.592518*k];
+        const coeffs=[0.000325,0.000165,0.000164,0.000126,0.000110,0.000062,0.000060,0.000056,0.000047,0.000042,0.000040,0.000037,0.000035,0.000023];
+        return angles.reduce((sum,v,i)=>sum+coeffs[i]*Math.sin(Utils.toRadians(Utils.toReducedAngle(v))),0);
+    }
+
+    static toNM(E,Sm,Mm,F,O){
+        Sm=Utils.toRadians(Sm); Mm=Utils.toRadians(Mm); F=Utils.toRadians(F); O=Utils.toRadians(O);
+        return -0.40720*Math.sin(Mm)+0.17241*E*Math.sin(Sm)+0.01608*Math.sin(2*Mm)+0.01039*Math.sin(2*F)+0.00739*E*Math.sin(Mm-Sm)
+        -0.00514*E*Math.sin(Mm+Sm)+0.00208*E*E*Math.sin(2*Sm)-0.00111*Math.sin(Mm-2*F)-0.00057*Math.sin(Mm+2*F)
+        +0.00056*E*Math.sin(2*Mm+Sm)-0.00042*Math.sin(3*Mm)+0.00042*E*Math.sin(Sm+2*F)+0.00038*E*Math.sin(Sm-2*F)
+        -0.00024*E*Math.sin(2*Mm-Sm)-0.00017*Math.sin(O)-0.00007*Math.sin(Mm+2*Sm)+0.00004*Math.sin(2*Mm-2*F)
+        +0.00004*Math.sin(3*Sm)+0.00003*Math.sin(Mm+Sm-2*F)+0.00003*Math.sin(2*Mm+2*F)-0.00003*Math.sin(Mm+Sm+2*F)
+        +0.00003*Math.sin(Mm-Sm+2*F)-0.00002*Math.sin(Mm-Sm-2*F)-0.00002*Math.sin(3*Mm+Sm)+0.00002*Math.sin(4*Mm);
+    }
+
+    static toDeltaT(y){ return 69; } // simplified for 2020-2025
+    static fromJulian(JDE){
+        const j=JDE+0.5, Z=Math.floor(j), F=j-Z;
+        let A=Z; if(Z>=2299161){ const alpha=Math.floor((Z-1867216.25)/36524.25); A=Z+1+alpha-Math.floor(alpha/4);}
+        const B=A+1524, C=Math.floor((B-122.1)/365.25), D=Math.floor(365.25*C), E=Math.floor((B-D)/30.6001);
+        const day=B-D-Math.floor(30.6001*E)+F; let month=(E<14?E-1:E-13), year=(month>2?C-4716:C-4715);
+        const dayInt=Math.floor(day), dayFrac=day-dayInt;
+        const hours=Math.floor(dayFrac*24), minutes=Math.floor((dayFrac*24-hours)*60);
+        const seconds=Math.floor((((dayFrac*24-hours)*60)-minutes)*60);
+        return new Date(Date.UTC(year,month-1,dayInt,hours,minutes,seconds));
+    }
+    static toDateTimeUTC(correctedJDE){ return new Date(Utils.fromJulian(correctedJDE).getTime()-Utils.toDeltaT(2020)*1000); }
+}
+
+// --- Generate New Moons 2020-2025 ---
+const start = new Date(622,7,1);
+const end = new Date(2100,11,31);
+
+const approxLunarDates = Utils.eachLunarCycle(start,end);
+
+const newMoons = approxLunarDates.map(d=>{
+    const k=Utils.toK(d), T=Utils.toT(k), JDE=Utils.toJDE(k,T), E=Utils.toE(T),
+                                      Sm=Utils.toM(k,T), Mm=Utils.toMPrime(k,T), F=Utils.toF(k,T), O=Utils.toO(k,T),
+                                      A=Utils.toA(k,T), NM=Utils.toNM(E,Sm,Mm,F,O),
+                                      correctedJDE=JDE+NM+A;
+                                      return Utils.toDateTimeUTC(correctedJDE);
+});
+
+function daysBetween(first, second) {
+
+    // Copy date parts of the timestamps, discarding the time parts.
+    var one = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+    var two = new Date(second.getFullYear(), second.getMonth(), second.getDate());
+
+    // Do the math.
+    var millisecondsPerDay = 1000 * 60 * 60 * 24;
+    var millisBetween = two.getTime() - one.getTime();
+    var days = millisBetween / millisecondsPerDay;
+
+    // Round down.
+    return Math.floor(days);
+}
+
+
+function generateLunarCalendar(moons){
+  return moons.slice(0,moons.length-1).map((nm,i)=>{
+    const start=new Date(nm.getTime());
+    const next=new Date(moons[i+1].getTime());
+    const daysInMonth= daysBetween(start, next);
+    let days=[];
+    for(let d=1;d<=daysInMonth;d++){
+      let g=new Date(start.getTime()); g.setUTCDate(start.getUTCDate()+d);
+      days.push({day:d,g:g.toISOString().split('T')[0]});
+    }
+    return {monthNumber:i%12, days};
+  });
+}
+
+// Prepare data
+const moons = newMoons;
+const lunarMonths = generateLunarCalendar(moons);
+let lunarData={},y=1;
+for(let i=0;i<lunarMonths.length;i+=12){ lunarData[y]=lunarMonths.slice(i,i+12); y++; }
+
+let currentYear=1;
+
+function renderYear(year){
+let totalDays = lunarData[year].reduce((sum, m) => sum + m.days.length, 0);
+document.getElementById("yearLabel").textContent = "Year " + year + " (" + totalDays + " days)";
+document.getElementById("yearInput").value=year;
+  const cont=document.getElementById("calendar");
+  cont.innerHTML="";
+
+  for(let rowStart=0;rowStart<12;rowStart+=4){ // 4 months per row
+    const grid=document.createElement("div"); grid.className="gridRow";
+    for(let m=rowStart;m<Math.min(rowStart+4,12);m++){
+      const md=document.createElement("div"); md.className="month";
+      const head=document.createElement("div"); head.className="month-header"; head.textContent=monthNames[m];
+      md.appendChild(head);
+      const caption=document.createElement("div"); caption.className="month-caption";
+      // caption.textContent="Month "+(m+1);
+      md.appendChild(caption);
+      const table=document.createElement("table");
+      const thead=document.createElement("thead"); const hrow=document.createElement("tr");
+      ["Su","Mo","Tu","We","Th","Fr","Sa"].forEach(d=>{ let th=document.createElement("th"); th.textContent=d; hrow.appendChild(th); });
+      thead.appendChild(hrow); table.appendChild(thead);
+      const tbody=document.createElement("tbody");
+      let monthDays=lunarData[year][m].days;
+      let firstDay=new Date(monthDays[0].g).getUTCDay();
+      let row=document.createElement("tr");
+      for(let i=0;i<firstDay;i++){ let td=document.createElement("td"); td.className="emptyCell"; row.appendChild(td); }
+      monthDays.forEach(day=>{
+        let td=document.createElement("td"); td.className="dayCell"; td.textContent=day.day; td.title=day.g;
+        row.appendChild(td);
+        if(row.children.length===7){ tbody.appendChild(row); row=document.createElement("tr"); }
+      });
+      if(row.children.length>0) tbody.appendChild(row);
+      table.appendChild(tbody);
+      md.appendChild(table);
+      grid.appendChild(md);
+    }
+    cont.appendChild(grid);
+  }
+}
+
+function prevYear(){ if(currentYear>1){currentYear--; renderYear(currentYear);} }
+function nextYear(){ if(currentYear<Object.keys(lunarData).length){currentYear++; renderYear(currentYear);} }
+function goToYear(){ const val=parseInt(document.getElementById("yearInput").value);
+  if(val>=1 && val<=Object.keys(lunarData).length){currentYear=val; renderYear(currentYear);} else alert("Invalid year"); }
+
+renderYear(currentYear);
+</script>
+</body>
+</html>
